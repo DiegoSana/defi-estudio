@@ -34,35 +34,35 @@ contract MiVaultTest is Test {
         //    - verificá: sharesOf(alice) == 100, totalAssets() == 100
         vm.prank(alice);
         vault.deposit(100);
-        assertEq(vault.sharesOf(alice), 100);
+        assertEq(vault.balanceOf(alice), 100);
         assertEq(vault.totalAssets(), 100);
 
         // 2. Yield simulado: 50 MTK entran directo al vault, sin pasar por deposit()
         //    - ¿qué función de MiToken usás y hacia qué dirección?
-        //    - verificá: totalAssets() == 150, totalShares() == 100
+        //    - verificá: totalAssets() == 150, totalSupply() == 100
         vm.prank(token.owner());
         token.mint(address(vault), 50);
         vault.harvest(); // el test contract es owner del vault porque lo desplegó
         assertEq(vault.totalAssets(), 150);
-        assertEq(vault.totalShares(), 100);
+        assertEq(vault.totalSupply(), 100);
 
         // 3. Bob deposita 100
-        //    - verificá: sharesOf(bob) == 66, totalShares() == 166, totalAssets() == 250
+        //    - verificá: balanceOf(bob) == 66, totalSupply() == 166, totalAssets() == 250
         vm.prank(bob);
         vault.deposit(100);
-        assertEq(vault.sharesOf(bob), 66);
-        assertEq(vault.totalShares(), 166);
+        assertEq(vault.balanceOf(bob), 66);
+        assertEq(vault.totalSupply(), 166);
         assertEq(vault.totalAssets(), 250);
 
         // 4. Alice retira sus 100 shares
-        //    - verificá: token.balanceOf(alice) == 150, sharesOf(alice) == 0
-        //    - verificá: totalAssets() == 100, totalShares() == 66
+        //    - verificá: token.balanceOf(alice) == 150, balanceOf(alice) == 0
+        //    - verificá: totalAssets() == 100, totalSupply() == 66
         vm.prank(alice);
         vault.withdraw(100);
         assertEq(token.balanceOf(alice), 150);
-        assertEq(vault.sharesOf(alice), 0);
+        assertEq(vault.balanceOf(alice), 0);
         assertEq(vault.totalAssets(), 100);
-        assertEq(vault.totalShares(), 66);
+        assertEq(vault.totalSupply(), 66);
     }
 
     // Depositar sin haber hecho approve
@@ -110,7 +110,7 @@ contract MiVaultTest is Test {
         // 3. La víctima deposita 15000 con el precio de la share ya inflado
         vm.prank(victim);
         vault.deposit(15000);
-        assertEq(vault.sharesOf(victim), 15000); // recibió 15000 shares, no perdió nada
+        assertEq(vault.balanceOf(victim), 15000); // recibió 15000 shares, no perdió nada
 
         // 4. La víctima retira su única share
         vm.prank(victim);
@@ -124,5 +124,32 @@ contract MiVaultTest is Test {
 
         // 6. El atacante dona 10000 más, pero ya no tiene shares para retirar
         assertEq(token.balanceOf(address(vault)), 10000); // la donación quedó trabada
+    }
+
+    function testTransferSharesThenWithdraw() public {
+        vm.prank(alice);
+        vault.deposit(100);
+
+        // Alice le pasa sus shares a Bob
+        vm.prank(alice);
+        vault.transfer(bob, 100);
+
+        assertEq(vault.balanceOf(alice), 0);
+        assertEq(vault.balanceOf(bob), 100);
+        assertEq(vault.totalSupply(), 100);   // no se crearon ni quemaron shares
+        assertEq(vault.totalAssets(), 100);   // el pozo no se tocó
+
+        // Alice ya no puede retirar
+        vm.prank(alice);
+        vm.expectRevert("insufficient shares");
+        vault.withdraw(100);
+
+        // Bob retira lo que depositó Alice
+        vm.prank(bob);
+        vault.withdraw(100);
+        assertEq(token.balanceOf(bob), 200);   // los 100 del setUp + los 100 retirados
+        assertEq(token.balanceOf(alice), 0);
+        assertEq(vault.totalSupply(), 0);
+        assertEq(vault.totalAssets(), 0);
     }
 }
