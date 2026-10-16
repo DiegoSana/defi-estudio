@@ -114,7 +114,7 @@ contract MiVaultTest is Test {
 
         // 4. La víctima retira su única share
         vm.prank(victim);
-        vault.withdraw(1);
+        vault.withdraw(15000);
         assertEq(token.balanceOf(victim), 15000); // recibió 15000, no perdió nada
 
         // 5. El atacante retira la suya
